@@ -37,7 +37,7 @@ A typical example could be the monitoring of interface errors when using the 'in
 
 
 ```
-check-influxdb-q.rb -q "SELECT DERIVATIVE(LAST(value), 1m) AS value FROM interface_rx WHERE type = 'if_errors' AND time > now() - 5m group by time(1m), instance, type fill(none)" -j '$.values[-1].value' -w 'value > 0' --msg "Number of errors on interface %{instance} - %{name}"
+check-influxdb-q.rb -q "SELECT DERIVATIVE(LAST(value), 1m) AS value FROM interface_rx WHERE type = 'if_errors' AND time > now() - 5m group by time(1m), instance, type fill(none)" -j '$.values[-1].value' -w 'value > 0' --msg "Number of RX errors on interface %{tags.instance}"
 ```
 
 An handy feature is the ability to interpolate the query result hash attributes into the --check-name and --msg command line flags.
