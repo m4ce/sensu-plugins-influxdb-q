@@ -2,6 +2,8 @@
 #
 # check-influxdb-q.rb
 #
+# Inspired by: https://github.com/sensu-plugins/sensu-plugins-influxdb/blob/master/bin/check-influxdb.rb
+#
 # Author: Matteo Cerutti <matteo.cerutti@hotmail.co.uk>
 #
 
@@ -95,6 +97,12 @@ class CheckInfluxDbQ < Sensu::Plugin::Check::CLI
          :long => "--crit <EXPR>",
          :default => nil
 
+  option :debug,
+         :description => "Enable debug mode",
+         :long => "--debug",
+         :boolean => true,
+         :default => false
+
   option :dryrun,
          :description => "Do not send events to sensu client socket",
          :long => "--dryrun",
@@ -184,9 +192,12 @@ class CheckInfluxDbQ < Sensu::Plugin::Check::CLI
 
     @clients.each do |client|
       query = config[:query].gsub(" WHERE ", " WHERE #{config[:host_field]} = '#{client}' AND ")
+      puts "* Query: #{query.inspect}" if config[:debug]
       begin
         records = @influxdb.query(query)
         records.each do |record|
+          puts "    - Result: #{record.inspect}" if config[:debug]
+
           value = @json_path.on(record).first
 
           record_s = record.symbolize_recursive
@@ -205,6 +216,7 @@ class CheckInfluxDbQ < Sensu::Plugin::Check::CLI
             send_unknown(check_name, client, "#{msg} - Value: N/A")
           end
         end
+        puts if config[:debug]
       rescue
         STDERR.puts($!)
         problems += 1

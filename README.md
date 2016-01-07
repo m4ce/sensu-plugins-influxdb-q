@@ -4,6 +4,12 @@ A sensu plugin that extends Sensu with the ability to run queries against Influx
 
 This is generally useful when you have to evaluate an issue using some analytics functions (e.g. moving average, derivative etc.).
 
+The plugin discovers all active sensu clients via the Sensu REST API and then runs for each client the InfluxDB query filtering by host.
+The plugin then generates multiple OK/WARN/CRIT/UNKNOWN events via the sensu client socket (https://sensuapp.org/docs/latest/clients#client-socket-input),
+making sure to override the client source (in the check result) so that the check shows up as if it was triggered by the original sensu client.
+
+The plugin is inspired by https://github.com/sensu-plugins/sensu-plugins-influxdb.
+
 ## Usage
 
 The plugin accepts the following command line options:
