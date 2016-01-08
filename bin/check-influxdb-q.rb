@@ -45,7 +45,7 @@ class CheckInfluxDbQ < Sensu::Plugin::Check::CLI
          :description => "JSON path for value matching (docs at http://goessner.net/articles/JsonPath)",
          :short => "-j <PATH>",
          :long => "--json-path <PATH>",
-         :required => true
+         :default => nil
 
   option :check_name,
          :description => "Check name (default: %{name}-%{tags.instance}-%{tags.type})",
@@ -97,12 +97,6 @@ class CheckInfluxDbQ < Sensu::Plugin::Check::CLI
          :long => "--crit <EXPR>",
          :default => nil
 
-  option :debug,
-         :description => "Enable debug mode",
-         :long => "--debug",
-         :boolean => true,
-         :default => false
-
   option :dryrun,
          :description => "Do not send events to sensu client socket",
          :long => "--dryrun",
@@ -120,7 +114,11 @@ class CheckInfluxDbQ < Sensu::Plugin::Check::CLI
     }
 
     @calculator = Dentaku::Calculator.new
-    @json_path = JsonPath.new(config[:json_path])
+    if config[:json_path]
+      @json_path = JsonPath.new(config[:json_path])
+    else
+      @json_path = nil
+    end
     @influxdb = InfluxDB::Client.new(cfg)
 
     # get list of hosts
@@ -192,31 +190,34 @@ class CheckInfluxDbQ < Sensu::Plugin::Check::CLI
 
     @clients.each do |client|
       query = config[:query].gsub(" WHERE ", " WHERE #{config[:host_field]} = '#{client}' AND ")
-      puts "* Query: #{query.inspect}" if config[:debug]
       begin
         records = @influxdb.query(query)
         records.each do |record|
-          puts "    - Result: #{record.inspect}" if config[:debug]
+          if @json_path
+            value = @json_path.on(record).first
 
-          value = @json_path.on(record).first
+            record_s = record.symbolize_recursive
+            check_name = "influxdb-q-#{interpolate(config[:check_name], record_s)}"
+            msg = interpolate(config[:msg], record_s)
 
-          record_s = record.symbolize_recursive
-          check_name = "influxdb-q-#{interpolate(config[:check_name], record_s)}"
-          msg = interpolate(config[:msg], record_s)
-
-          if value != nil
-            if config[:crit] and @calculator.evaluate(config[:crit], value: value)
-              send_critical(check_name, client, "#{msg} - Value: #{value} (#{config[:crit]})")
-            elsif config[:warn] and @calculator.evaluate(config[:warn], value: value)
-              send_warning(check_name, client, "#{msg} - Value: #{value} (#{config[:warn]})")
+            if value != nil
+              if config[:crit] and @calculator.evaluate(config[:crit], value: value)
+                send_critical(check_name, client, "#{msg} - Value: #{value} (#{config[:crit]})")
+              elsif config[:warn] and @calculator.evaluate(config[:warn], value: value)
+                send_warning(check_name, client, "#{msg} - Value: #{value} (#{config[:warn]})")
+              else
+                send_ok(check_name, client, "#{msg} - Value: #{value}")
+              end
             else
-              send_ok(check_name, client, "#{msg} - Value: #{value}")
+              send_unknown(check_name, client, "#{msg} - Value: N/A")
             end
           else
-            send_unknown(check_name, client, "#{msg} - Value: N/A")
+            puts "InfluxDB query [#{query}] held the following result (use --json-path to retrieve a single value)"
+            puts
+            puts JSON.pretty_generate(record)
+            puts
           end
         end
-        puts if config[:debug]
       rescue
         STDERR.puts($!)
         problems += 1
