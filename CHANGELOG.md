@@ -5,6 +5,10 @@ This CHANGELOG follows the format listed at [Keep A Changelog](http://keepachang
 
 ## Unreleased
 
+## [0.0.3] - 2016-01-08
+### Added
+- Reverted back to source
+
 ## [0.0.2] - 2016-01-07
 ### Added
 - Should be client rather than source in sensu event
