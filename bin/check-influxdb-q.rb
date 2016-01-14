@@ -85,6 +85,12 @@ class CheckInfluxDbQ < Sensu::Plugin::Check::CLI
          :long => "--host-field <FIELD>",
          :default => "host"
 
+  option :handlers,
+         :description => "Comma separated list of handlers",
+         :long => "--handlers <HANDLER>",
+         :proc => proc { |s| s.split(',') },
+         :default => []
+
   option :warn,
          :description => "Warning expression (e.g. value >= 5)",
          :short => "-w <EXPR>",
@@ -135,22 +141,22 @@ class CheckInfluxDbQ < Sensu::Plugin::Check::CLI
   end
 
   def send_ok(check_name, source, msg)
-    event = {"name" => check_name, "source" => source, "status" => 0, "output" => "OK: #{msg}", "handler" => config[:handler]}
+    event = {"name" => check_name, "source" => source, "status" => 0, "output" => "#{self.class.name} OK: #{msg}", "handlers" => config[:handlers]}
     send_client_socket(event.to_json)
   end
 
   def send_warning(check_name, source, msg)
-    event = {"name" => check_name, "source" => source, "status" => 1, "output" => "WARNING: #{msg}", "handler" => config[:handler]}
+    event = {"name" => check_name, "source" => source, "status" => 1, "output" => "#{self.class.name} WARNING: #{msg}", "handlers" => config[:handlers]}
     send_client_socket(event.to_json)
   end
 
   def send_critical(check_name, source, msg)
-    event = {"name" => check_name, "source" => source, "status" => 2, "output" => "CRITICAL: #{msg}", "handler" => config[:handler]}
+    event = {"name" => check_name, "source" => source, "status" => 2, "output" => "#{self.class.name} CRITICAL: #{msg}", "handlers" => config[:handlers]}
     send_client_socket(event.to_json)
   end
 
   def send_unknown(check_name, source, msg)
-    event = {"name" => check_name, "source" => source, "status" => 3, "output" => "UNKNOWN: #{msg}", "handler" => config[:handler]}
+    event = {"name" => check_name, "source" => source, "status" => 3, "output" => "#{self.class.name} UNKNOWN: #{msg}", "handlers" => config[:handlers]}
     send_client_socket(event.to_json)
   end
 
