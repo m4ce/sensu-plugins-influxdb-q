@@ -20,6 +20,7 @@ Usage: check-influxdb-q.rb (options)
     -c, --crit <EXPR>                Critical expression (e.g. value >= 10)
         --database <DATABASE>        InfluxDB database (default: collectd)
         --dryrun                     Do not send events to sensu client socket
+        --handlers <HANDLERS>        Comma separated list of handlers
         --host <HOST>                InfluxDB host (default: localhost)
         --host-field <FIELD>         InfluxDB measurement host field (default: host)
     -j, --json-path <PATH>           JSON path for value matching (docs at http://goessner.net/articles/JsonPath)
@@ -29,6 +30,8 @@ Usage: check-influxdb-q.rb (options)
         --use-ssl                    InfluxDB SSL (default: false)
     -w, --warn <EXPR>                Warning expression (e.g. value >= 5)
 ```
+
+Use the --handlers command line option to specify which handlers you want to use for the generated events.
 
 ## Example
 
