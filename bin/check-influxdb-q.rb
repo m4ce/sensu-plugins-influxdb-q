@@ -204,7 +204,7 @@ class CheckInfluxDbQ < Sensu::Plugin::Check::CLI
     @clients.each do |client|
       query = config[:query].gsub(" WHERE ", " WHERE #{config[:host_field]} = '#{client}' AND ")
       begin
-        timeout(config[:timeout) do
+        timeout(config[:timeout]) do
           begin
             records = @influxdb.query(query)
             records.each do |record|
