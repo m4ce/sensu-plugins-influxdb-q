@@ -14,6 +14,7 @@ require 'sensu-plugin/check/cli'
 require 'influxdb'
 require 'jsonpath'
 require 'dentaku'
+require 'timeout'
 
 class Hash
   def symbolize_recursive
@@ -79,6 +80,12 @@ class CheckInfluxDbQ < Sensu::Plugin::Check::CLI
          :long => "--use-ssl",
          :default => false,
          :boolean => true
+
+  option :timeout,
+         :description => "InfluxDB query timeout (default: 3)",
+         :long => "--timeout <SECONDS>",
+         :proc => proc { |i| i.to_i },
+         :default => 3
 
   option :host_field,
          :description => "InfluxDB measurement host field (default: host)",
@@ -197,35 +204,42 @@ class CheckInfluxDbQ < Sensu::Plugin::Check::CLI
     @clients.each do |client|
       query = config[:query].gsub(" WHERE ", " WHERE #{config[:host_field]} = '#{client}' AND ")
       begin
-        records = @influxdb.query(query)
-        records.each do |record|
-          if @json_path
-            value = @json_path.on(record).first
+        timeout(config[:timeout) do
+          begin
+            records = @influxdb.query(query)
+            records.each do |record|
+              if @json_path
+                value = @json_path.on(record).first
 
-            record_s = record.symbolize_recursive
-            check_name = "influxdb-q-#{interpolate(config[:check_name], record_s)}"
-            msg = interpolate(config[:msg], record_s)
+                record_s = record.symbolize_recursive
+                check_name = "influxdb-q-#{interpolate(config[:check_name], record_s)}"
+                msg = interpolate(config[:msg], record_s)
 
-            if value != nil
-              if config[:crit] and @calculator.evaluate(config[:crit], value: value)
-                send_critical(check_name, client, "#{msg} - Value: #{value} (#{config[:crit]})")
-              elsif config[:warn] and @calculator.evaluate(config[:warn], value: value)
-                send_warning(check_name, client, "#{msg} - Value: #{value} (#{config[:warn]})")
+                if value != nil
+                  if config[:crit] and @calculator.evaluate(config[:crit], value: value)
+                    send_critical(check_name, client, "#{msg} - Value: #{value} (#{config[:crit]})")
+                  elsif config[:warn] and @calculator.evaluate(config[:warn], value: value)
+                    send_warning(check_name, client, "#{msg} - Value: #{value} (#{config[:warn]})")
+                  else
+                    send_ok(check_name, client, "#{msg} - Value: #{value}")
+                  end
+                else
+                  send_unknown(check_name, client, "#{msg} - Value: N/A")
+                end
               else
-                send_ok(check_name, client, "#{msg} - Value: #{value}")
+                puts "InfluxDB query [#{query}] held the following result (use --json-path to retrieve a single value)"
+                puts
+                puts JSON.pretty_generate(record)
+                puts
               end
-            else
-              send_unknown(check_name, client, "#{msg} - Value: N/A")
             end
-          else
-            puts "InfluxDB query [#{query}] held the following result (use --json-path to retrieve a single value)"
-            puts
-            puts JSON.pretty_generate(record)
-            puts
+          rescue
+            STDERR.puts($!)
+            problems += 1
           end
         end
-      rescue
-        STDERR.puts($!)
+      rescue Timeout::Error
+        STDERR.puts("InfluxDB query [#{query}] timed out")
         problems += 1
       end
     end
