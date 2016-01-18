@@ -92,12 +92,6 @@ class CheckInfluxDbQ < Sensu::Plugin::Check::CLI
          :long => "--host-field <FIELD>",
          :default => "host"
 
-  option :only_sensu_clients,
-         :description => "Only consider measurements of known sensu clients",
-         :long => "--only-sensu-clients",
-         :boolean => true
-         :default => false
-
   option :handlers,
          :description => "Comma separated list of handlers",
          :long => "--handlers <HANDLER>",
@@ -139,9 +133,6 @@ class CheckInfluxDbQ < Sensu::Plugin::Check::CLI
       @json_path = nil
     end
     @influxdb = InfluxDB::Client.new(cfg)
-
-    # get list of hosts
-    @clients = get_clients()
   end
 
   def send_client_socket(data)
@@ -190,34 +181,15 @@ class CheckInfluxDbQ < Sensu::Plugin::Check::CLI
     string.gsub(/%\{([^\}]*)\}/).each { |match| match[/^%{(.*)}$/, 1].split('.').inject(hash) { |h, k| h[(k.to_s == k.to_i.to_s) ? k.to_i : k.to_sym] } }
   end
 
-  def get_clients()
-    clients = []
-
-    if req = api_request(:GET, "/clients")
-      if req.code == '200'
-        JSON.parse(req.body).each do |client|
-          clients << client['name']
-        end
-      end
-    end
-
-    clients
-  end
-
   def run()
-    problems = 0
-
     begin
       timeout(config[:timeout]) do
         begin
-          records = @influxdb.query(query)
+          records = @influxdb.query(config[:query])
           if records.size > 0
             records.each do |record|
-              if record.has_key?(config[:host_field])
-                client = record[config[:host_field]]
-
-                # skip client if it's not already known by Sensu
-                next if config[:only_sensu_clients] and ! @clients.include?(client)
+              if record['tags'].has_key?(config[:host_field])
+                client = record['tags'][config[:host_field]]
               else
                 client = nil
               end
@@ -241,21 +213,21 @@ class CheckInfluxDbQ < Sensu::Plugin::Check::CLI
                   send_unknown(check_name, client, "#{msg} - Value: N/A")
                 end
               else
-                puts "InfluxDB query [#{query}] held the following result (use --json-path to retrieve a single value)"
+                puts "InfluxDB query [#{config[:query]}] held the following result (use --json-path to retrieve a single value)"
                 puts
                 puts JSON.pretty_generate(record)
                 puts
               end
             end
           else
-            unknown("InfluxDB query [#{query}] held no results")
+            unknown("InfluxDB query [#{config[:query]}] held no results")
           end
         rescue
-          critical("InfluxDB query [#{query}] failed - (#{$!})")
+          critical("InfluxDB query [#{config[:query]}] failed - (#{$!})")
         end
       end
     rescue Timeout::Error
-      unknown("InfluxDB query [#{query}] timed out")
+      unknown("InfluxDB query [#{config[:query]}] timed out")
     end
 
     ok("Query executed successfully")
