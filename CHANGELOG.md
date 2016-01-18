@@ -3,6 +3,10 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 This CHANGELOG follows the format listed at [Keep A Changelog](http://keepachangelog.com/)
 
+## [0.0.8] - 2016-01-18
+### Added
+- Not filtering by sensu clients anymore
+
 ## [0.0.7] - 2016-01-18
 ### Added
 - Fixing closing bracket
