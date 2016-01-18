@@ -37,7 +37,7 @@ class CheckInfluxDbQ < Sensu::Plugin::Check::CLI
   include Sensu::Plugin::Utils
 
   option :query,
-         :description => "Query to execute [e.g. SELECT DERIVATIVE(LAST(value), 1m) AS value FROM interface_rx WHERE type = 'if_errors' AND time > now() - 5m group by time(1m), instance, type fill(none)]",
+         :description => "Query to execute [e.g. SELECT DERIVATIVE(LAST(value), 1m) AS value FROM interface_rx WHERE type = 'if_errors' AND time > now() - 5m group by time(1m), host, instance, type fill(none)]",
          :short => "-q <QUERY>",
          :long => "--query <QUERY>",
          :required => true
@@ -91,6 +91,12 @@ class CheckInfluxDbQ < Sensu::Plugin::Check::CLI
          :description => "InfluxDB measurement host field (default: host)",
          :long => "--host-field <FIELD>",
          :default => "host"
+
+  option :only_sensu_clients,
+         :description => "Only consider measurements of known sensu clients",
+         :long => "--only-sensu-clients",
+         :boolean => true
+         :default => false
 
   option :handlers,
          :description => "Comma separated list of handlers",
@@ -201,13 +207,21 @@ class CheckInfluxDbQ < Sensu::Plugin::Check::CLI
   def run()
     problems = 0
 
-    @clients.each do |client|
-      query = config[:query].gsub(" WHERE ", " WHERE #{config[:host_field]} = '#{client}' AND ")
-      begin
-        timeout(config[:timeout]) do
-          begin
-            records = @influxdb.query(query)
+    begin
+      timeout(config[:timeout]) do
+        begin
+          records = @influxdb.query(query)
+          if records.size > 0
             records.each do |record|
+              if record.has_key?(config[:host_field])
+                client = record[config[:host_field]]
+
+                # skip client if it's not already known by Sensu
+                next if config[:only_sensu_clients] and ! @clients.include?(client)
+              else
+                client = nil
+              end
+
               if @json_path
                 value = @json_path.on(record).first
 
@@ -233,23 +247,17 @@ class CheckInfluxDbQ < Sensu::Plugin::Check::CLI
                 puts
               end
             end
-          rescue
-            STDERR.puts($!)
-            problems += 1
+          else
+            unknown("InfluxDB query [#{query}] held no results")
           end
+        rescue
+          critical("InfluxDB query [#{query}] failed - (#{$!})")
         end
-      rescue Timeout::Error
-        STDERR.puts("InfluxDB query [#{query}] timed out")
-        problems += 1
       end
+    rescue Timeout::Error
+      unknown("InfluxDB query [#{query}] timed out")
     end
 
-    if problems > 0
-      message("Failed to run query for #{problems} clients")
-      critical if config[:crit]
-      warning
-    else
-      ok("Query executed successfully for #{@clients.size} clients")
-    end
+    ok("Query executed successfully")
   end
 end

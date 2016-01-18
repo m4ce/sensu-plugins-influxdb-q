@@ -4,9 +4,9 @@ A sensu plugin that extends Sensu with the ability to run queries against Influx
 
 This is generally useful when you have to evaluate an issue using some analytics functions (e.g. moving average, derivative etc.).
 
-The plugin discovers all active sensu clients via the Sensu REST API and then runs for each client the InfluxDB query filtering by host.
-The plugin then generates multiple OK/WARN/CRIT/UNKNOWN events via the sensu client socket (https://sensuapp.org/docs/latest/clients#client-socket-input),
-making sure to override the client source (in the check result) so that the check shows up as if it was triggered by the original sensu client.
+The plugin generates multiple OK/WARN/CRIT/UNKNOWN events via the sensu client socket (https://sensuapp.org/docs/latest/clients#client-socket-input),
+making sure to override the client source (in the check result) so that the check shows up as if it was triggered by the original sensu client. The client
+source is overriden ONLY if the host field (--host-field) is present in the results returned by the InfluxDB query.
 
 The plugin is inspired by https://github.com/sensu-plugins/sensu-plugins-influxdb.
 
@@ -20,13 +20,14 @@ Usage: check-influxdb-q.rb (options)
     -c, --crit <EXPR>                Critical expression (e.g. value >= 10)
         --database <DATABASE>        InfluxDB database (default: collectd)
         --dryrun                     Do not send events to sensu client socket
-        --handlers <HANDLERS>        Comma separated list of handlers
+        --handlers <HANDLER>         Comma separated list of handlers
         --host <HOST>                InfluxDB host (default: localhost)
         --host-field <FIELD>         InfluxDB measurement host field (default: host)
     -j, --json-path <PATH>           JSON path for value matching (docs at http://goessner.net/articles/JsonPath)
     -m, --msg <MESSAGE>              Message to use for OK/WARNING/CRITICAL, supports variable interpolation (e.g. %{tags.instance}) (required)
         --port <PORT>                InfluxDB port (default: 8086)
-    -q, --query <QUERY>              Query to execute [e.g. SELECT DERIVATIVE(LAST(value), 1m) AS value FROM interface_rx WHERE type = 'if_errors' AND time > now() - 5m group by time(1m), instance, type fill(none)] (required)
+    -q, --query <QUERY>              Query to execute [e.g. SELECT DERIVATIVE(LAST(value), 1m) AS value FROM interface_rx WHERE type = 'if_errors' AND time > now() - 5m group by time(1m), host, instance, type fill(none)] (required)
+        --timeout <SECONDS>          InfluxDB query timeout (default: 3)
         --use-ssl                    InfluxDB SSL (default: false)
     -w, --warn <EXPR>                Warning expression (e.g. value >= 5)
 ```
@@ -39,7 +40,7 @@ A typical example could be the monitoring of interface errors when using the 'in
 
 
 ```
-check-influxdb-q.rb -q "SELECT DERIVATIVE(LAST(value), 1m) AS value FROM interface_rx WHERE type = 'if_errors' AND time > now() - 5m group by time(1m), instance, type fill(none)" -j '$.values[-1].value' -w 'value > 0' --msg "Number of RX errors on interface %{tags.instance}"
+check-influxdb-q.rb -q "SELECT DERIVATIVE(LAST(value), 1m) AS value FROM interface_rx WHERE type = 'if_errors' AND time > now() - 5m group by time(1m), host, instance, type fill(none)" -j '$.values[-1].value' -w 'value > 0' --msg "Number of RX errors on interface %{tags.instance}"
 ```
 
 An handy feature is the ability to interpolate the query result hash attributes into the --check-name and --msg command line flags.
